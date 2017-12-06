@@ -4,7 +4,7 @@ import Test.Hspec
 import Test.QuickCheck
 
 import Advent
-import qualified Data.Vector as V
+import qualified Data.Vector.Unboxed as V
 
 -- `main` is here so that this module can be run from GHCi on its own.  It is
 -- not needed for automatic spec discovery.
