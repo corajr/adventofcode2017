@@ -1,4 +1,3 @@
-{-# LANGUAGE BangPatterns #-}
 module Advent where
 
 import Control.Monad (forM_)
