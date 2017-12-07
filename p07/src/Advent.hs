@@ -66,7 +66,7 @@ part2 = either (const 0) id . fmap f . parse pPrograms ""
               differentKidKids = getChildren progName
               subtree = if not (null differentKidKids) then checkWeights differentKid else Nothing
               diff = correctWeight - differentWeight
-          in  if Map.size weightCounts == 1  -- all looks balanced, need to check kids
+          in  if Map.size weightCounts <= 1  -- all looks balanced, may need to check kids
               then asum (map checkWeights kids)
               else asum [subtree, Just (differentKidIndividual + diff)]
         getChildren progName = maybe [] id (fmap holding $ Map.lookup progName programs)
