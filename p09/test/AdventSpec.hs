@@ -45,6 +45,17 @@ exampleScores =
   , ("{{<a!>},{<a!>},{<a!>},{<ab>}}", 3)
   ]
 
+exampleGarbageScores =
+  [ ("<>", 0)
+  , ("<random characters>", 17)
+  , ("<<<<>", 3)
+  , ("<{!>}>", 2)
+  , ("<!!>", 0)
+  , ("<!!!>>", 0)
+  , ("<{o\"i!a,<{i<a>", 10)
+  ]
+
+
 spec :: Spec
 spec = do
   describe "pGarbage" $ do
@@ -52,9 +63,9 @@ spec = do
     forM_ exampleInvalidGarbages $ \ex ->
       it ("does not consume all of " ++ ex) $
         parse pGarbage' "" ex `shouldSatisfy` isLeft
-    forM_ exampleGarbages $ \ex ->
+    forM_ exampleGarbageScores $ \(ex, n) ->
       it ("consumes all of " ++ ex) $
-        parse pGarbage' "" ex `shouldBe` Right Garbage
+        parse pGarbage' "" ex `shouldBe` Right (Garbage n)
   describe "part1" $ do
     forM_ exampleScores $ \(ex, n) ->
       it (ex ++ " ==> " ++ show n) $
