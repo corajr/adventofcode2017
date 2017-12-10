@@ -28,3 +28,12 @@ spec = do
   describe "part1" $ do
     it "part1 5 [3, 4, 1, 5] ==> 12" $
       part1 5 [3, 4, 1, 5] `shouldBe` 12
+  describe "part2" $ do
+    it "\"\" ==> a2582a3a0e66e6e86e3812dcb672a272" $
+      part2 "" `shouldBe` "a2582a3a0e66e6e86e3812dcb672a272"
+    it "\"AoC 2017\" ==> 33efeb34ea91902bb2f59c9920caa6cd" $
+      part2 "AoC 2017" `shouldBe` "33efeb34ea91902bb2f59c9920caa6cd"
+    it "\"1,2,3\" ==> 3efbe78a8d82f29979031a4aa0b16a9d" $
+      part2 "1,2,3" `shouldBe` "3efbe78a8d82f29979031a4aa0b16a9d"
+    it "\"1,2,4\" ==> 63960835bcdc130f0b66d7ff4f6a5a8e" $
+      part2 "1,2,4" `shouldBe` "63960835bcdc130f0b66d7ff4f6a5a8e"
