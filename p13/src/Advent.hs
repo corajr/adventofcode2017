@@ -68,7 +68,6 @@ part2 xs = maybe 0 snd $ find f (iterate g (startState, 0))
   where
     original = parseFirewall xs
     startState = initialState original
-    iterate' f x = x `seq` x : iterate' f (f x)
     f (x, _) = null $ travelFirewall True original x
     g (x, i) = let (st, _) = execRWS advanceLayers original x
                in (st, i + 1)
