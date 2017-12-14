@@ -48,4 +48,4 @@ part2 = countToLoopFromSeen . parseBanks
 cliMain :: IO ()
 cliMain = do
   input <- readFile "../inputs/06.txt"
-  print $ part2 input
+  print $ part1 input
