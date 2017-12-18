@@ -32,6 +32,16 @@ exampleInstructions = unlines
   , "jgz a -2"
   ]
 
+exampleInstructions2 = unlines
+  [ "snd 1"
+  , "snd 2"
+  , "snd p"
+  , "rcv a"
+  , "rcv b"
+  , "rcv c"
+  , "rcv d"
+  ]
+
 exampleInstructionsParsed = V.fromList
   [ Set 'a' (Value 1)
   , Add 'a' (Value 2)
@@ -60,3 +70,6 @@ spec = do
   describe "part1" $ do
     let ex' = ex part1
     ex' exampleInstructions 4
+  describe "part2" $ do
+    let ex' = ex part2
+    ex' exampleInstructions2 3
