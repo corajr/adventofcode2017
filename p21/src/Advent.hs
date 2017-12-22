@@ -87,3 +87,4 @@ cliMain :: IO ()
 cliMain = do
   input <- readFile "../inputs/21.txt"
   print $ part1 5 input
+  print $ part1 18 input
