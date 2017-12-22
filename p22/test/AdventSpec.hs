@@ -32,3 +32,6 @@ spec = do
     ex' 7 exampleMap 5
     ex' 70 exampleMap 41
     ex' 10000 exampleMap 5587
+  describe "part2" $ do
+    let ex' = ex . part2
+    ex' 100 exampleMap 26

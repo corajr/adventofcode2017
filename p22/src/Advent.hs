@@ -1,5 +1,4 @@
 {-# LANGUAGE NamedFieldPuns #-}
-{-# LANGUAGE TupleSections #-}
 module Advent where
 
 import Control.Monad.RWS
@@ -14,7 +13,10 @@ type Position = (Int, Int)
 data Direction = North | East | South | West
   deriving (Eq, Show, Ord)
 
-type Grid = Map Position Bool
+data Status = Clean | Weakened | Infected | Flagged
+  deriving (Eq, Show, Ord)
+
+type Grid = Map Position Status
 
 data CarrierState = CarrierState
   { grid :: Grid
@@ -31,7 +33,7 @@ offset (a, b) dir = case dir of
   East -> (a + 1, b)
   West -> (a - 1, b)
 
-turnLeft, turnRight :: Direction -> Direction
+turnLeft, turnRight, reverseDir :: Direction -> Direction
 turnLeft North = West
 turnLeft West = South
 turnLeft South = East
@@ -42,11 +44,18 @@ turnRight West = North
 turnRight South = West
 turnRight East = South
 
+reverseDir North = South
+reverseDir West = East
+reverseDir South = North
+reverseDir East = West
+
 parseGrid :: String -> Grid
 parseGrid = centerCoords . Map.fromList . f . zip [0..] . lines
   where
-    f :: [(Int, String)] -> [(Position, Bool)]
-    f = concatMap (\(i, xs) -> map (\(pos, c) -> (pos, c == '#')) $ zipWith (\j y -> ((j, i), y)) [0..] xs)
+    f :: [(Int, String)] -> [(Position, Status)]
+    f = concatMap (\(i, xs) -> map (\(pos, c) -> (pos, g c)) $ zipWith (\j y -> ((j, i), y)) [0..] xs)
+    g '#' = Infected
+    g '.' = Clean
 
 centerCoords :: Grid -> Grid
 centerCoords m = Map.mapKeys f m
@@ -59,12 +68,12 @@ centerCoords m = Map.mapKeys f m
 initialState :: Grid -> CarrierState
 initialState m = CarrierState m (0, 0) North
 
-peekAt :: Position -> CarrierRWS Bool
+peekAt :: Position -> CarrierRWS Status
 peekAt position = do
   CarrierState { grid } <- get
-  pure $ Map.findWithDefault False position grid
+  pure $ Map.findWithDefault Clean position grid
 
-getCurrent :: CarrierRWS Bool
+getCurrent :: CarrierRWS Status
 getCurrent = do
   CarrierState { position } <- get
   peekAt position
@@ -76,17 +85,21 @@ move = do
 
 maybeTurn :: CarrierRWS ()
 maybeTurn = do
-  nodeInfected <- getCurrent
-  let turn = if nodeInfected then turnRight else turnLeft
+  nodeStatus <- getCurrent
+  let turn = case nodeStatus of
+               Infected -> turnRight
+               Clean -> turnLeft
   modify (\s -> s { direction = turn (direction s)})
 
 infectOrClean :: CarrierRWS ()
 infectOrClean = do
   CarrierState { position } <- get
-  nodeInfected <- peekAt position
-  let nowInfected = not nodeInfected
-  when nowInfected $ tell (Sum 1)
-  modify (\s -> s { grid = Map.insert position nowInfected $ grid s })
+  nodeStatus <- peekAt position
+  let newStatus = case nodeStatus of
+                    Clean -> Infected
+                    Infected -> Clean
+  when (newStatus == Infected) $ tell (Sum 1)
+  modify (\s -> s { grid = Map.insert position newStatus $ grid s })
 
 step :: CarrierRWS ()
 step = do
@@ -94,17 +107,50 @@ step = do
   infectOrClean
   move
 
-runCarrier :: Int -> String -> Int
-runCarrier n xs = wInfections
+maybeTurn2 :: CarrierRWS ()
+maybeTurn2 = do
+  nodeStatus <- getCurrent
+  let turn = case nodeStatus of
+               Clean -> turnLeft
+               Weakened -> id
+               Infected -> turnRight
+               Flagged -> reverseDir
+  modify (\s -> s { direction = turn (direction s)})
+
+changeStatus :: CarrierRWS ()
+changeStatus = do
+  CarrierState { position } <- get
+  nodeStatus <- peekAt position
+  let newStatus = case nodeStatus of
+                    Clean -> Weakened
+                    Weakened -> Infected
+                    Infected -> Flagged
+                    Flagged -> Clean
+  when (newStatus == Infected) $ tell (Sum 1)
+  modify (\s -> s { grid = Map.insert position newStatus $ grid s })
+
+
+step2 :: CarrierRWS ()
+step2 = do
+  maybeTurn2
+  changeStatus
+  move
+
+runCarrier :: CarrierRWS () -> Int -> String -> Int
+runCarrier f n xs = wInfections
   where
-    (_, _, (Sum wInfections)) = runRWS (replicateM n step) () starting
+    (_, _, (Sum wInfections)) = runRWS (replicateM n f) () starting
     grid = parseGrid xs
     starting = initialState grid
 
 part1 :: Int -> String -> Int
-part1 = runCarrier
+part1 = runCarrier step
+
+part2 :: Int -> String -> Int
+part2 = runCarrier step2
 
 cliMain :: IO ()
 cliMain = do
   input <- readFile "../inputs/22.txt"
   print $ part1 10000 input
+  print $ part2 10000000 input
