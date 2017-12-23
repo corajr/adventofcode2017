@@ -7,6 +7,7 @@ import qualified Data.Map.Strict as Map
 import Data.Vector (Vector)
 import Debug.Trace (traceShowId)
 import qualified Data.Vector as V
+import qualified Data.Vector.Mutable as MV
 import Text.Parsec hiding (State)
 import Text.ParserCombinators.Parsec.Number (int)
 
@@ -23,6 +24,8 @@ data Condition = Running | Blocked | Done
   deriving (Eq, Show)
 
 type ProgramRWS = RWS Program (Sum Int) MachineState
+
+type RWSOut a = (a, MachineState, Sum Int)
 
 type Register = Char
 
@@ -93,26 +96,67 @@ execute (Sub x y) = valueOf y >>= sub x
 execute (Mul x y) = tell (Sum 1) >> valueOf y >>= mul x
 execute (Jnz x y) = jnz x y
 
-moveToNext :: ProgramRWS ()
+moveToNext :: ProgramRWS Bool
 moveToNext = do
   instructions <- ask
   MachineState { programCounter } <- get
   if programCounter < 0 || programCounter >= (V.length instructions - 1)
-  then pure ()
-  else modify (\s -> s { programCounter = programCounter + 1}) >> step
+  then pure False
+  else modify (\s -> s { programCounter = programCounter + 1}) >> pure True
 
-step :: ProgramRWS ()
+step :: ProgramRWS Bool
 step = do
   inst <- getInstruction
   execute inst
   moveToNext
 
+stepAll = do
+  shouldContinue <- step
+  when shouldContinue $ stepAll
+
 part1 :: String -> Int
 part1 = either (error . show) f . parse pProgram ""
-  where f xs = g $ runRWS step xs initialState
+  where f xs = g $ runRWS stepAll xs initialState
         g (a, s, (Sum w)) = w
+
+printRegisters :: MachineState -> IO ()
+printRegisters (MachineState {registers}) = print registers
+
+printInstruction :: Instruction -> IO ()
+printInstruction = print
+
+printAllState :: Program -> MachineState -> IO ()
+printAllState program s = do
+  let (a, _) = evalRWS getInstruction program s
+      pc = programCounter s
+  printRegisters s
+  putStr (show pc ++ ": ") >> printInstruction a
+
+debugInitialState = initialState { registers = Map.singleton 'a' 1}
+
+debug :: String -> IO ()
+debug x = go debugInitialState
+  where
+    program = either (error . show) id . parse pProgram "" $ x
+    go s = do
+      let (a, s', w) = runRWS step program s
+      if a
+        then printAllState program s >> putStrLn "" >> getLine >> go s'
+        else pure ()
+
+isPrime n
+  | n `mod` 2 == 0 && n > 2 = False
+  | otherwise = all (\i -> n `mod` i /= 0) [3, 5 .. ceiling (sqrt (fromIntegral n))]
+
+-- Full disclosure: I did not figure this one out. :(
+-- https://github.com/dp1/AoC17/blob/master/day23.5.txt
+part2 =
+  let b = 106500
+      c = 123500
+  in length $ filter (not . isPrime) [b, b + 17.. c]
 
 cliMain :: IO ()
 cliMain = do
   input <- readFile "../inputs/23.txt"
-  print $ part1 input
+  print part2
+  -- debug input
