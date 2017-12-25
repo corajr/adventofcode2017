@@ -5,12 +5,13 @@ module Advent
  , pPorts
  , canConnect
  , connect
+ , insert
  , remove
  , doConnect
  , getPossibleNext
  , bridgesFrom
  , starters
- , portMaps
+ , portMap
  , part1
  , part2
  , cliMain
@@ -46,8 +47,10 @@ data Port = Port { side1 :: Pins, side2 :: Pins}
 instance Show Port where
   show (Port a b) = show a ++ "-" ++ show b
 
-type PortMap = Map Int (Seq Port)
-type PortMaps = (PortMap, PortMap)
+type Count = Int
+type Ports = Map Port Count
+
+type PortMap = Map Int Ports
 
 mkPort :: Int -> Int -> Port
 mkPort a b = if a < b then Port (Open a) (Open b) else Port (Open b) (Open a)
@@ -84,100 +87,91 @@ connect x y = do
   (b, y') <- openPinsAndClosedVersion y
   if a == b then pure (x', y') else []
 
-portMap :: (Port -> Pins) -> [Port] -> PortMap
-portMap f = Map.fromListWith (Seq.><) . concatMap g
+portMap :: [Port] -> PortMap
+portMap = foldl' (flip insert) Map.empty
+
+innerInsert :: Port -> Ports -> Ports
+innerInsert x = Map.alter g x
   where
-    g x = case f x of
-      Closed _ -> []
-      Open x' -> [(x', Seq.singleton x)]
+    g (Just count) = Just (count + 1)
+    g Nothing = Just 1
 
-deleteAt :: Int -> Seq a -> Seq a
-deleteAt i xs =
-  let (ys, zs) = Seq.splitAt i xs
-  in ys Seq.>< Seq.drop 1 zs
+nonemptyMap :: Map k a -> Maybe (Map k a)
+nonemptyMap m = if Map.null m then Nothing else Just m
 
-modifyFirstInstanceOf :: (Eq a) => (Int -> Seq a -> Seq a) -> a -> Seq a -> Seq a
-modifyFirstInstanceOf f x xs = case Seq.elemIndexL x xs of
-  Just i -> f i xs
-  Nothing -> xs
-
-clearEmpties :: (Eq a) => (a -> Seq a -> Seq a) -> a -> Seq a -> Maybe (Seq a)
-clearEmpties f x xs
-  | Seq.null xs' = Nothing
-  | otherwise = Just xs'
-  where xs' = f x xs
-
-deleteFirst :: (Eq a) => a -> Seq a -> Seq a
-deleteFirst x = modifyFirstInstanceOf deleteAt x
-
-deleteFirst' = clearEmpties deleteFirst
-
-doUpdate :: (Port -> Seq Port -> Maybe (Seq Port)) -> PortMaps -> Port -> PortMaps
-doUpdate f (firstMap, secondMap) x@(Port a b) =
-  let firstMap' = Map.update (f x) (unPins a) firstMap
-      secondMap' = Map.update (f x) (unPins b) secondMap
-  in (firstMap', secondMap')
-
-portMaps :: [Port] -> PortMaps
-portMaps = portMap side1 &&& portMap side2
-
-remove :: PortMaps -> Port -> PortMaps
-remove = doUpdate deleteFirst'
-
-addOrAdjust :: (Seq Port -> Seq Port) -> Int -> PortMap -> PortMap
-addOrAdjust f i = Map.alter f' i
+insert :: Port -> PortMap -> PortMap
+insert (Port (Closed _) (Closed _)) m = m
+insert port@(Port a b) m = m''
   where
-    f' Nothing = Just (f Seq.empty)
-    f' (Just xs) = Just (f xs)
+    m' = case a of
+      Closed _ -> m
+      Open a' -> Map.alter g a' m
+    m'' = case b of
+      Closed _ -> m'
+      Open b' -> Map.alter g b' m'
+    g (Just inner) = nonemptyMap $ innerInsert port inner
+    g Nothing = nonemptyMap $ innerInsert port Map.empty
 
-insert (Port (Closed _) (Closed _)) maps = maps
-insert x@(Port (Open a) (Closed _)) (firstMap, secondMap) =
-  (addOrAdjust (Seq.|> x) a firstMap, secondMap)
-insert x@(Port (Closed _) (Open b)) (firstMap, secondMap) =
-  (firstMap, addOrAdjust (Seq.|> x) b secondMap)
-insert x@(Port (Open a) (Open b)) (firstMap, secondMap) =
-  (addOrAdjust (Seq.|> x) a firstMap, addOrAdjust (Seq.|> x) b secondMap)
+innerRemove :: Port -> Ports -> Ports
+innerRemove x = Map.alter g x
+  where
+    g (Just count) = if count == 1 then Nothing else Just (count - 1)
+    g Nothing = Nothing
 
-doConnect :: Port -> Port -> PortMaps -> [(Port, PortMaps)]
-doConnect start end maps = do
+remove :: Port -> PortMap -> PortMap
+remove port@(Port a b) m =
+  Map.alter g a' . Map.alter g b' $ m
+  where
+    a' = unPins a
+    b' = unPins b
+    g (Just inner) = nonemptyMap $ innerRemove port inner
+    g Nothing = Nothing
+
+doConnect :: Port -> Port -> PortMap -> [(Port, PortMap)]
+doConnect start end availablePorts = do
   (start', end') <- connect start end
-  let maps' = insert start' $ remove maps start
-      maps'' = insert end' $ remove maps' end
-  pure $ (end, maps'')
+  let availablePorts' = insert start' $ remove start availablePorts
+      availablePorts'' = insert end' $ remove end availablePorts'
+  pure $ (end', availablePorts'')
 
-getPossibleNext :: Port -> PortMaps -> [(Port, PortMaps)]
-getPossibleNext port maps =
-  let (firstMap, secondMap) = maps `remove` port
-  in concatMap (\x -> doConnect port x maps) $ do
+getPossibleNext :: Port -> PortMap -> [(Port, PortMap)]
+getPossibleNext port availablePorts =
+  let availablePorts' = remove port availablePorts
+  in concatMap (\x -> doConnect port x availablePorts') $ do
     pins <- openPins port
-    let xs = toList $ Map.findWithDefault Seq.empty (unPins pins) firstMap
-        (_, secondMap') = foldl' remove (firstMap, secondMap) xs
-        ys = toList $ Map.findWithDefault Seq.empty (unPins pins) secondMap'
-    xs ++ ys
+    Map.keys $ Map.findWithDefault Map.empty (unPins pins) availablePorts'
 
-starters :: PortMaps -> [(Port, PortMaps)]
+starters :: PortMap -> [(Port, PortMap)]
 starters = getPossibleNext (Port (Closed 0) (Open 0))
 
 score :: [Port] -> Int
 score [] = 0
 score (x : xs) = sumPins x + score xs
 
-bridgesFrom :: [(Port, PortMaps)] -> [[Port]]
+score2 :: [Port] -> (Int, Int)
+score2 [] = (0, 0)
+score2 (x : xs) = let (a, b) = score2 xs
+                  in (a + 1, b + sumPins x)
+
+bridgesFrom :: [(Port, PortMap)] -> [[Port]]
 bridgesFrom [] = [[]]
-bridgesFrom ((x, maps) : xs) = nexts' ++ bridgesFrom xs
+bridgesFrom ((x, availablePorts) : xs) = nexts' ++ bridgesFrom xs
   where
-    nexts = getPossibleNext x maps
+    nexts = getPossibleNext x availablePorts
     nexts' = map (x:) $ bridgesFrom nexts
 
-maxBridge :: PortMaps -> Int
-maxBridge maps = maximum . map score $ bridgesFrom (starters maps)
+maxBridge :: PortMap -> Int
+maxBridge availablePorts = maximum . map score $ bridgesFrom (starters availablePorts)
+
+maxLengthBridge :: PortMap -> Int
+maxLengthBridge availablePorts = snd . maximum . map score2 $ bridgesFrom (starters availablePorts)
 
 part1 :: String -> Int
-part1 = either (error . show) (maxBridge . portMaps) . parse pPorts ""
+part1 = either (error . show) (maxBridge . portMap) . parse pPorts ""
 
-part2 = undefined
+part2 = either (error . show) (maxLengthBridge . portMap) . parse pPorts ""
 
 cliMain :: IO ()
 cliMain = do
   input <- readFile "../inputs/24.txt"
-  print $ part1 input
+  print $ part2 input

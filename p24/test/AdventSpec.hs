@@ -66,49 +66,49 @@ spec = do
     ex' (mkPort 0 3) (mkPort 2 3) True
     ex' (mkPort 1 2) (mkPort 0 1) True
   describe "connect" $ do
-    let ex' a b out = ex id (connect a b) out
+    let ex' = ex (uncurry connect)
         pOO = Port (Open 0) (Open 1)
         pXO = Port (Closed 0) (Open 1)
         pOX = Port (Open 0) (Closed 1)
         pXX = Port (Closed 0) (Closed 1)
-    ex' pOO pXO [(pOX, pXX)]
-    ex' pOX pXO []
-    ex' pOX pOX [(pXX, pXX)]
-    ex' pXX pXO []
+    ex' (pOO, pXO) [(pOX, pXX)]
+    ex' (pOX, pXO) []
+    ex' (pOX, pOX) [(pXX, pXX)]
+    ex' (pXX, pXO) []
   describe "pPorts" $ do
     it "should parse the example" $
       parse pPorts "" examplePorts `shouldBe` Right examplePortsParsed
   describe "remove" $ do
     let start = mkPort 0 2
-        maps = portMaps [mkPort 0 2, mkPort 0 1, mkPort 0 3, mkPort 2 3]
-        maps' = portMaps [mkPort 0 1, mkPort 0 3, mkPort 2 3]
-        ex' maps = ex (\x -> maps `remove` x)
-    ex' maps start maps'
+        ports = portMap [mkPort 0 2, mkPort 0 1, mkPort 0 3, mkPort 2 3]
+        ports' = portMap [mkPort 0 1, mkPort 0 3, mkPort 2 3]
+        ex' ports = ex (\x -> remove x ports)
+    ex' ports start ports'
   describe "doConnect" $ do
     let start = Port (Closed 0) (Open 2)
         end = Port (Open 2) (Open 3)
         end' = Port (Closed 2) (Open 3)
-        maps = portMaps [start, end]
-        maps' = portMaps [end']
+        ports = portMap [start, end]
+        ports' = portMap [end']
     it "should connect two ports" $
-      doConnect start end maps `shouldBe` [(end, maps')]
+      doConnect start end ports `shouldBe` [(end', ports')]
   describe "starters" $ do
-    let maps = portMaps [mkPort 0 2, mkPort 1 2]
-        maps' = portMaps [mkPort 1 2]
+    let ports = portMap [mkPort 0 2, mkPort 1 2]
+        ports' = portMap [mkPort 1 2, Port (Closed 0) (Open 2)]
     it "should return starting positions" $
-      starters maps `shouldBe` [(Port (Closed 0) (Open 2), maps')]
+      starters ports `shouldBe` [(Port (Closed 0) (Open 2), ports')]
   describe "getPossibleNext" $ do
     let start = Port (Closed 0) (Open 2)
         end = mkPort 2 3
         end' = Port (Closed 2) (Open 3)
-        maps = portMaps [start, end]
-        ex' = ex (\x -> getPossibleNext x maps)
-        nexts = [(end, portMaps [end'])]
+        ports = portMap [start, end]
+        ex' = ex (\x -> getPossibleNext x ports)
+        nexts = [(end', portMap [end'])]
     ex' start nexts
   describe "bridgesFrom" $ do
-    let maps = portMaps examplePortsParsed
+    let ports = portMap examplePortsParsed
     it "should return the examples" $ do
-      let bridges = bridgesFrom (starters maps)
+      let bridges = bridgesFrom (starters ports)
       length bridges `shouldBe` length validBridges
       bridges `shouldBe` validBridges
   describe "part1" $ do
