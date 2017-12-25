@@ -34,10 +34,17 @@ import Text.ParserCombinators.Parsec.Number (int)
 
 data Pins = Closed { unPins :: Int }
           | Open { unPins :: Int }
-  deriving (Eq, Show, Ord)
+  deriving (Eq, Ord)
+
+instance Show Pins where
+  show (Closed x) = "X" ++ show x
+  show (Open x) = "O" ++ show x
 
 data Port = Port { side1 :: Pins, side2 :: Pins}
-  deriving (Eq, Show, Ord)
+  deriving (Eq, Ord)
+
+instance Show Port where
+  show (Port a b) = show a ++ "-" ++ show b
 
 type PortMap = Map Int (Seq Port)
 type PortMaps = (PortMap, PortMap)
@@ -137,7 +144,7 @@ doConnect start end maps = do
   let maps' = insert start' $ remove maps start
       maps'' = insert end' $ remove maps' end
   pure $ (end, maps'')
-    
+
 getPossibleNext :: Port -> PortMaps -> [(Port, PortMaps)]
 getPossibleNext port maps =
   let (firstMap, secondMap) = maps `remove` port
